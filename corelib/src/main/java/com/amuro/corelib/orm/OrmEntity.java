@@ -6,15 +6,15 @@ package com.amuro.corelib.orm;
 
 public abstract class OrmEntity
 {
-	protected long _id;
+	private long _id;
 
 	public long get_id()
 	{
 		return _id;
 	}
 
-	public void set_id(long _id)
-	{
-		this._id = _id;
-	}
+//	public void set_id(long _id)
+//	{
+//		this._id = _id;
+//	}
 }

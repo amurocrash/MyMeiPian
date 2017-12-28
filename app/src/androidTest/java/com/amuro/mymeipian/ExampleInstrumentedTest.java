@@ -6,7 +6,7 @@ import android.support.test.runner.AndroidJUnit4;
 
 import com.amuro.corelib.orm.annotation.OrmTable;
 import com.amuro.corelib.utils.ReflectUtils;
-import com.amuro.mymeipian.model.article.ArticleEntity;
+import com.amuro.mymeipian.model.entity.ArticleEntity;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;

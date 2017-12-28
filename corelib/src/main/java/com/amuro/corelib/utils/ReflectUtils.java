@@ -120,44 +120,14 @@ public class ReflectUtils
 		return classes;
 	}
 
-
-//		List<Class<?>> classes = new ArrayList<>();
-//		try
-//		{
-//			PathClassLoader classLoader = (PathClassLoader) Thread
-//					.currentThread().getContextClassLoader();
-//
-//			DexFile dex = new DexFile(ctx.getPackageResourcePath());
-//			Enumeration<String> entries = dex.entries();
-//			while (entries.hasMoreElements())
-//			{
-//				String entryName = entries.nextElement();
-//				if (entryName.contains(entityPackage))
-//				{
-//					Class<?> entryClass =
-//							Class.forName(entryName, true, classLoader);
-//					if(annotationClass == null)
-//					{
-//						classes.add(entryClass);
-//					}
-//					else
-//					{
-//						Annotation annotation =
-//								entryClass.getAnnotation(annotationClass);
-//						if (annotation != null)
-//						{
-//							classes.add(entryClass);
-//						}
-//					}
-//				}
-//			}
-//		}
-//		catch (Exception e)
-//		{
-//			e.printStackTrace();
-//		}
-//
-//		return classes;
+	public static void setFieldValue(
+			String className, String fieldName, Object obj, Object value) throws Exception
+	{
+		Class clazz = Class.forName(className);
+		Field f = clazz.getDeclaredField(fieldName);
+		f.setAccessible(true);
+		f.set(obj, value);
+	}
 
 }
 

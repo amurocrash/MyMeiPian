@@ -10,9 +10,15 @@ import com.amuro.mymeipian.model.MeiPianModel;
 
 public class MeiPianApp extends Application
 {
+	static
+	{
+		System.loadLibrary("meipian_native");
+	}
+
 	@Override
 	public void onCreate()
 	{
 		super.onCreate();
+		MeiPianModel.getInstance().initialize(this);
 	}
 }

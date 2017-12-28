@@ -26,13 +26,23 @@ public class DbManager
 		ormManager.initialize(context, DB_NAME, DB_VERSION);
 	}
 
-	public long insert(OrmEntity data)
+	public<T extends OrmEntity> long insert(T entity)
 	{
-		return ormManager.insert(data);
+		return ormManager.insert(entity);
 	}
 
-	public List<OrmEntity> queryAll(Class<? extends OrmEntity> entityClass)
+	public<T extends OrmEntity> List<T> queryAll(Class<? extends OrmEntity> entityClass)
 	{
 		return ormManager.queryAll(entityClass);
+	}
+
+	public<T extends OrmEntity> int delete(T entity)
+	{
+		return ormManager.delete(entity);
+	}
+
+	public<T extends OrmEntity> int update(T entity)
+	{
+		return ormManager.update(entity);
 	}
 }

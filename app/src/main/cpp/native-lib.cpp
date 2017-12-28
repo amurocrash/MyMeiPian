@@ -3,7 +3,7 @@
 
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_com_amuro_mymeipian_MainActivity_stringFromJNI(JNIEnv *env, jobject /* this */)
+Java_com_amuro_mymeipian_view_MainActivity_stringFromJNI(JNIEnv *env, jobject /* this */)
 {
     std::string hello = "Hello from C++";
 

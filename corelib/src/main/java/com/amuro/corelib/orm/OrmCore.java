@@ -8,25 +8,19 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.text.TextUtils;
 
 import com.amuro.corelib.logger.Logger;
-import com.amuro.corelib.orm.annotation.OrmColumn;
-import com.amuro.corelib.orm.annotation.OrmTable;
 import com.amuro.corelib.orm.utils.SqlUtils;
-import com.amuro.corelib.utils.ReflectUtils;
 
-import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Created by Amuro on 2017/12/21.
  */
 
-public class OrmCore extends SQLiteOpenHelper
+public class OrmCore<T extends OrmEntity> extends SQLiteOpenHelper
 {
 	private Context context;
 	private SQLiteDatabase db;
 	private Logger logger;
-	private List<String> createTableSqlList;
 
 	public OrmCore(Context context, String name, int version)
 	{
@@ -41,7 +35,7 @@ public class OrmCore extends SQLiteOpenHelper
 		logger.v("sql oh onCreate");
 		this.db = db;
 
-		for(String sql : createTableSqlList)
+		for(String sql : OrmManager.getInstance().getCreateSqls())
 		{
 			db.execSQL(sql);
 		}
@@ -53,77 +47,8 @@ public class OrmCore extends SQLiteOpenHelper
 
 	}
 
-	public void createTables()
-	{
-		try
-		{
-			List<Class<?>> tableEntityList =
-					ReflectUtils.scanClassesOfPkgWithAnnotation(
-							context,
-							context.getPackageName(),
-							OrmTable.class);
 
-			if (tableEntityList == null || tableEntityList.size() == 0)
-			{
-				return;
-			}
-
-			createTableSqlList = new ArrayList<>();
-
-			for (Class<?> tableClass : tableEntityList)
-			{
-				String createTableSql = generateCreateTableSqls(tableClass);
-				if (createTableSql != null)
-				{
-					logger.v("createSql: " + createTableSql);
-					createTableSqlList.add(createTableSql);
-				}
-			}
-		}
-		catch (Exception e)
-		{
-			logger.v("create table exception: " + e.getMessage());
-		}
-	}
-
-	private String generateCreateTableSqls(Class<?> tableClass)
-	{
-		String createSql = null;
-
-		try
-		{
-			StringBuilder sb = new StringBuilder();
-			String tableName =
-					SqlUtils.getTableName(tableClass);
-			sb.append(
-					"CREATE TABLE " + tableName + "(_id integer primary key autoincrement, ");
-
-			Field[] fields = ReflectUtils.getAllField(tableClass);
-			for(Field f : fields)
-			{
-				f.setAccessible(true);
-				if(f.getAnnotation(OrmColumn.class) != null)
-				{
-					sb.append(f.getName() + " " + SqlUtils.javaBaseTypeToSql(f.getType()) + ",");
-				}
-
-			}
-
-			//delete the last comma
-			sb.deleteCharAt(sb.length() - 1);
-			createSql = sb.append(")").toString();
-		}
-		catch (Exception e)
-		{
-			logger.v("generate table sqls exception: " + e.getMessage());
-		}
-
-
-		return createSql;
-
-	}
-
-	public long insert(OrmEntity entity)
+	public long insert(T entity)
 	{
 		String tableName = SqlUtils.getTableName(entity.getClass());
 		if(TextUtils.isEmpty(tableName))
@@ -144,8 +69,12 @@ public class OrmCore extends SQLiteOpenHelper
 		try
 		{
 			result = db.insert(tableName, null, cv);
-			entity.set_id(result);
+			SqlUtils.setEntity_id(entity, result);
 			db.setTransactionSuccessful();
+		}
+		catch (Exception e)
+		{
+			logger.v("insert exception: " + e.getMessage());
 		}
 		finally
 		{
@@ -155,7 +84,7 @@ public class OrmCore extends SQLiteOpenHelper
 		return result;
 	}
 
-	public int delete(OrmEntity entity)
+	public int delete(T entity)
 	{
 		int result = 0;
 		db = this.getWritableDatabase();
@@ -166,7 +95,8 @@ public class OrmCore extends SQLiteOpenHelper
 			String tableName =
 					SqlUtils.getTableName(entity.getClass());
 
-			result = db.delete(tableName, "_id=?", new String[]{String.valueOf(entity.get_id())});
+			result = db.delete(
+					tableName, "_id=?", new String[]{String.valueOf(entity.get_id())});
 
 			db.setTransactionSuccessful();
 		}
@@ -178,10 +108,11 @@ public class OrmCore extends SQLiteOpenHelper
 		return result;
 	}
 
-	public List<OrmEntity> queryAll(Class<? extends OrmEntity> tableClass)
+	public List<T> queryAll(Class<? extends OrmEntity> tableClass)
 	{
 		db = this.getWritableDatabase();
 		db.beginTransaction();
+		List<T> resultList = null;
 
 		try
 		{
@@ -189,7 +120,7 @@ public class OrmCore extends SQLiteOpenHelper
 			Cursor cursor = db.rawQuery("select * from " + tableName, null);
 			if(cursor.moveToFirst())
 			{
-				return SqlUtils.cursorToList(cursor, tableClass);
+				resultList = SqlUtils.cursorToList(cursor, tableClass);
 			}
 
 			db.setTransactionSuccessful();
@@ -197,9 +128,37 @@ public class OrmCore extends SQLiteOpenHelper
 		finally
 		{
 			db.endTransaction();
+			return resultList;
 		}
 
-		return null;
+	}
+
+	public int update(T entity)
+	{
+		db = this.getWritableDatabase();
+		db.beginTransaction();
+		int result = 0;
+
+		try
+		{
+			String tableName =
+					SqlUtils.getTableName(entity.getClass());
+			ContentValues cv = SqlUtils.objToContentValues(entity);
+
+			result = db.update(
+					tableName, cv, "_id=?", new String[]{String.valueOf(entity.get_id())});
+			db.setTransactionSuccessful();
+		}
+		catch (Exception e)
+		{
+
+		}
+		finally
+		{
+			db.endTransaction();
+			return result;
+		}
+
 	}
 
 	public void recycle()

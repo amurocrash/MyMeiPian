@@ -1,4 +1,4 @@
-package com.amuro.mymeipian.model.article;
+package com.amuro.mymeipian.model.entity;
 
 import com.amuro.corelib.orm.OrmEntity;
 import com.amuro.corelib.orm.annotation.OrmColumn;

@@ -2,14 +2,17 @@ package com.amuro.corelib.orm.utils;
 
 import android.content.ContentValues;
 import android.database.Cursor;
+import android.provider.CalendarContract;
 
 import com.amuro.corelib.orm.OrmEntity;
+import com.amuro.corelib.orm.OrmManager;
 import com.amuro.corelib.orm.annotation.OrmColumn;
 import com.amuro.corelib.orm.annotation.OrmTable;
 import com.amuro.corelib.utils.ReflectUtils;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 
 /**
@@ -23,6 +26,10 @@ public class SqlUtils
 		if(clazz.equals(int.class) || clazz.equals(Integer.class))
 		{
 			return "integer";
+		}
+		else if(clazz.equals(Calendar.class))
+		{
+			return "date";
 		}
 		else if(clazz.equals(String.class))
 		{
@@ -42,7 +49,7 @@ public class SqlUtils
 		return tableClass.getAnnotation(OrmTable.class).tableName();
 	}
 
-	public static ContentValues objToContentValues(Object obj)
+	public static<T extends OrmEntity> ContentValues objToContentValues(T obj)
 	{
 		try
 		{
@@ -58,6 +65,10 @@ public class SqlUtils
 					if(f.getType() == int.class)
 					{
 						cv.put(f.getName(), (int)f.get(obj));
+					}
+					if(f.getType() == Calendar.class)
+					{
+						cv.put(f.getName(), calenderToStr((Calendar)f.get(obj)));
 					}
 					else if(f.getType() == String.class)
 					{
@@ -76,33 +87,55 @@ public class SqlUtils
 
 	}
 
-	public static List<OrmEntity> cursorToList(
-			Cursor cursor, Class<? extends OrmEntity> entityClass)
+	public static String calenderToStr(Calendar calendar)
 	{
-		List<OrmEntity> entityList = null;
+		return calendar.get(Calendar.YEAR) + "-" +
+				calendar.get(Calendar.MONTH) + "-" +
+				calendar.get(Calendar.DAY_OF_MONTH);
+	}
+
+	public static<T extends OrmEntity> List<T> cursorToList(
+		Cursor cursor, Class<? extends OrmEntity> entityClass)
+	{
+		List<T> entityList = null;
 		try
 		{
 			if (cursor.moveToFirst())
 			{
 				entityList = new ArrayList<>();
 
+				Field[] fields = ReflectUtils.getAllField(entityClass);
 				for (int i = 0; i < cursor.getCount(); i++)
 				{
-					OrmEntity entity = entityClass.newInstance();
-					cursor.move(i);
-					entity.set_id(cursor.getInt(0));
+					T entity = (T)entityClass.newInstance();
+					setEntity_id(entity, cursor.getInt(0));
+//					ReflectUtils.setFieldValue(
+//							OrmEntity.class.getName(), "_id", entity, cursor.getInt(0));
 
-					Field[] fields = ReflectUtils.getAllField(entityClass);
+//					entity.set_id(cursor.getInt(0));
+
 					for (Field f : fields)
 					{
 						f.setAccessible(true);
 						if (f.getAnnotation(OrmColumn.class) != null)
 						{
 							int columnIndex = cursor.getColumnIndex(f.getName());
+
 							Object value = null;
 							if(f.getType() == int.class)
 							{
 								value = cursor.getInt(columnIndex);
+							}
+							else if(f.getType() == Calendar.class)
+							{
+								String dateStr = cursor.getString(columnIndex);
+								String[] dateArr = dateStr.split("-");
+								Calendar c = Calendar.getInstance();
+								c.set(Integer.valueOf(dateArr[0]),
+										Integer.valueOf(dateArr[1]),
+										Integer.valueOf(dateArr[2])
+								);
+								value = c;
 							}
 							else if(f.getType() == String.class)
 							{
@@ -114,6 +147,7 @@ public class SqlUtils
 					}
 
 					entityList.add(entity);
+					cursor.moveToNext();
 
 				}
 
@@ -124,10 +158,18 @@ public class SqlUtils
 		}
 		catch (Exception e)
 		{
-
+			OrmManager.getInstance().logger.v(
+					"cursor to List when exception: " + e.getMessage());
 		}
 
 		return entityList;
+	}
+
+	public static<T extends OrmEntity> void setEntity_id(
+			T entity, long _id) throws Exception
+	{
+		ReflectUtils.setFieldValue(
+				OrmEntity.class.getName(), "_id", entity, _id);
 	}
 }
 
