@@ -1,6 +1,8 @@
 package com.amuro.corelib.http.okhttp;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
@@ -21,6 +23,7 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 
 import okhttp3.Cache;
+import okhttp3.CacheControl;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Cookie;
@@ -34,6 +37,11 @@ import okhttp3.Response;
 public class OkHttpCore
 {
 	private static final int DEFAULT_CACHE_SIZE = 10 * 1024 * 1024;
+	private static final int DEFAULT_CONNECT_TIMEOUT = 10;
+	private static final int DEFAULT_READ_TIMEOUT = 10;
+	private static final int DEFAULT_WRITE_TIMEOUT = 10;
+	private static final int DEFAULT_PING_INTERVAL = 10;
+	private static final int DEFAULT_CACHE_MAX_AGE = 600;
 
 	private Context context;
 	private OkHttpClient httpClient;
@@ -70,13 +78,13 @@ public class OkHttpCore
 
 			Https.SSLParams sslParams = Https.getSslSocketFactory(null, null, null);
 
-
 			httpClient = new OkHttpClient.Builder()
-				.connectTimeout(15, TimeUnit.SECONDS)//连接超时(单位:秒)
-				.writeTimeout(20, TimeUnit.SECONDS)//写入超时(单位:秒)
-				.readTimeout(20, TimeUnit.SECONDS)//读取超时(单位:秒)
-				.pingInterval(20, TimeUnit.SECONDS) //webSocket轮训间隔(单位:秒)
+				.connectTimeout(DEFAULT_CONNECT_TIMEOUT, TimeUnit.SECONDS)//连接超时(单位:秒)
+				.writeTimeout(DEFAULT_WRITE_TIMEOUT, TimeUnit.SECONDS)//写入超时(单位:秒)
+				.readTimeout(DEFAULT_READ_TIMEOUT, TimeUnit.SECONDS)//读取超时(单位:秒)
+				.pingInterval(DEFAULT_PING_INTERVAL, TimeUnit.SECONDS) //webSocket轮训间隔(单位:秒)
 				.cache(new Cache(cacheDir.getAbsoluteFile(), DEFAULT_CACHE_SIZE))//设置缓存
+				.retryOnConnectionFailure(true)
 				.cookieJar(new CookieJar()
 				{
 					@Override
@@ -105,39 +113,69 @@ public class OkHttpCore
 		}
 	}
 
-	public Response syncGet(
-			String url, Map<String, String> headers, Map<String, String> params)
+	public<T> T syncGet(
+			String url, Map<String, String> headers, Map<String, String> params,
+			final Class<T> clazzOfT) throws Exception
 	{
-		return realSyncRequest(url, headers, params, false);
+		return realSyncRequest(url, headers, params, false, clazzOfT);
 	}
 
-	public Response syncPost(
-			String url, Map<String, String> headers, Map<String, String> params)
+	public<T> List<T> syncGetList(
+			String url, Map<String, String> headers, Map<String, String> params,
+			final Class<T> clazzOfT) throws Exception
 	{
-		return realSyncRequest(url, headers, params, true);
+		return realSyncRequestList(url, headers, params, false, clazzOfT);
 	}
 
-	private Response realSyncRequest(
-			String url, Map<String, String> headers, Map<String, String> params, boolean isPost)
+	public<T> T syncPost(
+			String url, Map<String, String> headers, Map<String, String> params,
+			final Class<T> clazzOfT) throws Exception
+	{
+		return realSyncRequest(url, headers, params, true, clazzOfT);
+	}
+
+	private<T> T realSyncRequest(
+			String url, final Map<String, String> headers, Map<String, String> params,
+			boolean isPost, final Class<T> clazzOfT) throws Exception
 	{
 		if(TextUtils.isEmpty(url))
 		{
 			return null;
 		}
 
-		Response response = null;
-
-		try
-		{
-			response = httpClient.newCall(
+		Response response = httpClient.newCall(
 					generateRequest(url, headers, params, isPost)).execute();
-		}
-		catch (IOException e)
+		if(response.isSuccessful())
 		{
-			e.printStackTrace();
+
+			final T result = JSON.parseObject(response.body().toString(), clazzOfT);
+
+			return result;
 		}
 
-		return response;
+		throw new Exception("response is failed with code " + response.code());
+	}
+
+	private<T> List<T> realSyncRequestList(
+			String url, final Map<String, String> headers, Map<String, String> params,
+			boolean isPost, final Class<T> clazzOfT) throws Exception
+	{
+		if(TextUtils.isEmpty(url))
+		{
+			return null;
+		}
+
+		Response response = httpClient.newCall(
+				generateRequest(url, headers, params, isPost)).execute();
+		if(response.isSuccessful())
+		{
+
+			final List<T> result = JSON.parseArray(response.body().string(), clazzOfT);
+
+			return result;
+		}
+
+		throw new Exception("response is failed with code " + response.code());
 	}
 
 	private Request generateRequest(
@@ -157,6 +195,10 @@ public class OkHttpCore
 		{
 			String urlWithParams = HttpUtils.urlWithParamsForGet(url, params);
 			builder.url(urlWithParams);
+			builder.cacheControl(
+					new CacheControl.Builder().
+							maxAge(DEFAULT_CACHE_MAX_AGE, TimeUnit.SECONDS).
+							build());
 			builder.get();
 		}
 		else
@@ -171,9 +213,22 @@ public class OkHttpCore
 			builder.post(fbBuilder.build());
 		}
 
-
 		return builder.build();
 	}
+
+	public Bitmap syncGetBitmap(String url) throws Exception
+	{
+		Call bitmapCall =
+				httpClient.newCall(generateRequest(url, null, null, false));
+		Response response = bitmapCall.execute();
+		byte[] bitmapBytes = response.body().bytes();
+		Bitmap bitmap =
+				BitmapFactory.decodeByteArray(
+						bitmapBytes, 0, bitmapBytes.length);
+		return bitmap;
+	}
+
+	/**************************Async Request******************************/
 
 	public interface IHttpCallback<T>
 	{

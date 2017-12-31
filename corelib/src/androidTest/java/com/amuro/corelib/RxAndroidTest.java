@@ -791,6 +791,78 @@ public class RxAndroidTest
 
 
 	}
+
+	private static class Http
+	{
+		static int request1(int origin) throws Exception
+		{
+			return origin + 3;
+		}
+
+		static String getStr(int a) throws Exception
+		{
+			return "str is " + a;
+		}
+	}
+
+	/**
+	 * 完整的包含错误处理的嵌套请求例子(14想复杂了)
+	 */
+	@Test
+	public void test15()
+	{
+		//因为可以在子线程中进行请求，可以随意阻塞，所以可以把一堆需求按照同步代码来写
+		//然后最终的Subscriber中获得最终想要的数据就ok
+		//假设这里有两个请求最终把一个int转成一个string
+		final int origin = 10;
+		Observable.
+				create(new Observable.OnSubscribe<String>()
+				{
+					@Override
+					public void call(Subscriber<? super String> subscriber)
+					{
+						try
+						{
+							//同步写就行了，管他有多少个请求
+							int result1 = Http.request1(origin);
+							String result2 = Http.getStr(result1);
+
+							subscriber.onNext(result2);
+							subscriber.onCompleted();
+						}
+						catch (Exception e)
+						{
+							e.printStackTrace();
+							subscriber.onError(e);
+							subscriber.onCompleted();
+							return;
+						}
+
+					}
+				}).
+				subscribeOn(Schedulers.io()).
+				observeOn(AndroidSchedulers.mainThread()).
+				subscribe(new Subscriber<String>()
+				{
+					@Override
+					public void onCompleted()
+					{
+
+					}
+
+					@Override
+					public void onError(Throwable e)
+					{
+						sysout(e.getMessage());
+					}
+
+					@Override
+					public void onNext(String s)
+					{
+						sysout(s);
+					}
+				});
+	}
 }
 
 
